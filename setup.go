@@ -3,7 +3,6 @@ package realip
 import (
 	"net"
 
-	"github.com/captncraig/caddy-util"
 	"github.com/mholt/caddy/caddy/setup"
 	"github.com/mholt/caddy/middleware"
 )
@@ -23,7 +22,7 @@ func Setup(c *setup.Controller) (middleware.Middleware, error) {
 		m = &module{
 			Header: "X-Forwarded-For",
 		}
-		if err := util.Unmarshal(c, m); err != nil {
+		if err := parse(m, c); err != nil {
 			return nil, err
 		}
 	}
