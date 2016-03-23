@@ -12,7 +12,6 @@ func (m *module) ServeHTTP(w http.ResponseWriter, req *http.Request) (int, error
 	host, port, err := net.SplitHostPort(req.RemoteAddr)
 	if err != nil {
 		if m.Strict {
-			w.WriteHeader(403)
 			return 403, fmt.Errorf("Error reading remote addr: %s", req.RemoteAddr)
 		}
 		return m.next.ServeHTTP(w, req) // Change nothing and let next deal with it.
@@ -20,7 +19,6 @@ func (m *module) ServeHTTP(w http.ResponseWriter, req *http.Request) (int, error
 	reqIP := net.ParseIP(host)
 	if reqIP == nil {
 		if m.Strict {
-			w.WriteHeader(403)
 			return 403, fmt.Errorf("Error parsing remote addr: %s", host)
 		}
 		return m.next.ServeHTTP(w, req)
@@ -32,7 +30,6 @@ func (m *module) ServeHTTP(w http.ResponseWriter, req *http.Request) (int, error
 		}
 	}
 	if !validSource && m.Strict {
-		w.WriteHeader(403)
 		return 403, fmt.Errorf("Unrecognized proxy ip address: %s", reqIP)
 	}
 	if hVal := req.Header.Get(m.Header); validSource && hVal != "" {

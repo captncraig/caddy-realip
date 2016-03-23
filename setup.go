@@ -34,7 +34,14 @@ func Setup(c *setup.Controller) (middleware.Middleware, error) {
 }
 
 func parse(m *module, c *setup.Controller) (err error) {
-	if args := c.RemainingArgs(); len(args) != 0 {
+	args := c.RemainingArgs()
+	if len(args) == 1 && args[0] == "cloudflare" {
+		addCloudflareIps(m)
+		if c.NextBlock() {
+			return c.Err("No realip subblocks allowed if using preset.")
+		}
+	}
+	if len(args) != 0 {
 		return c.ArgErr()
 	}
 	for c.NextBlock() {
@@ -48,9 +55,6 @@ func parse(m *module, c *setup.Controller) (err error) {
 			m.From = append(m.From, cidr)
 		case "strict":
 			m.Strict, err = BoolArg(c)
-		case "cloudflare":
-			err = NoArgs(c)
-			addCloudflareIps(m)
 		default:
 			return c.Errf("Unknown realip arg: %s", c.Val())
 		}
