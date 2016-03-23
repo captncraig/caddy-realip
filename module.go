@@ -1,6 +1,7 @@
 package realip
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -10,16 +11,29 @@ func (m *module) ServeHTTP(w http.ResponseWriter, req *http.Request) (int, error
 	validSource := false
 	host, port, err := net.SplitHostPort(req.RemoteAddr)
 	if err != nil {
-		return m.next.ServeHTTP(w, req) // invalid remote ip. Change nothing and let next deal with it.
+		if m.Strict {
+			w.WriteHeader(403)
+			return 403, fmt.Errorf("Error reading remote addr: %s", req.RemoteAddr)
+		}
+		return m.next.ServeHTTP(w, req) // Change nothing and let next deal with it.
 	}
 	reqIP := net.ParseIP(host)
 	if reqIP == nil {
-		return m.next.ServeHTTP(w, req) //same as above.
+		if m.Strict {
+			w.WriteHeader(403)
+			return 403, fmt.Errorf("Error parsing remote addr: %s", host)
+		}
+		return m.next.ServeHTTP(w, req)
 	}
 	for _, from := range m.From {
 		if from.Contains(reqIP) {
 			validSource = true
+			break
 		}
+	}
+	if !validSource && m.Strict {
+		w.WriteHeader(403)
+		return 403, fmt.Errorf("Unrecognized proxy ip address: %s", reqIP)
 	}
 	if hVal := req.Header.Get(m.Header); validSource && hVal != "" {
 		//restore original host:port format
