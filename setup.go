@@ -40,8 +40,7 @@ func parse(m *module, c *setup.Controller) (err error) {
 		if c.NextBlock() {
 			return c.Err("No realip subblocks allowed if using preset.")
 		}
-	}
-	if len(args) != 0 {
+	} else if len(args) != 0 {
 		return c.ArgErr()
 	}
 	for c.NextBlock() {
