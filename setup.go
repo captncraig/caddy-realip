@@ -3,37 +3,45 @@ package realip
 import (
 	"net"
 
-	"github.com/mholt/caddy/caddy/setup"
-	"github.com/mholt/caddy/middleware"
+	"github.com/mholt/caddy/caddyhttp/httpserver"
+	"github.com/mholt/caddy"
 )
 
+func init() {
+	caddy.RegisterPlugin("realip", caddy.Plugin{
+		ServerType: "http",
+		Action:     Setup,
+	})
+}
+
 type module struct {
-	next   middleware.Handler
+	next   httpserver.Handler
 	From   []*net.IPNet
 	Header string
 	Strict bool
 }
 
-func Setup(c *setup.Controller) (middleware.Middleware, error) {
+func Setup(c *caddy.Controller) error {
 	var m *module
 	for c.Next() {
 		if m != nil {
-			return nil, c.Err("cannot specify realip more than once")
+			return c.Err("cannot specify realip more than once")
 		}
 		m = &module{
 			Header: "X-Forwarded-For",
 		}
 		if err := parse(m, c); err != nil {
-			return nil, err
+			return err
 		}
 	}
-	return func(next middleware.Handler) middleware.Handler {
+	httpserver.GetConfig(c).AddMiddleware(func(next httpserver.Handler) httpserver.Handler {
 		m.next = next
 		return m
-	}, nil
+	})
+	return nil
 }
 
-func parse(m *module, c *setup.Controller) (err error) {
+func parse(m *module, c *caddy.Controller) (err error) {
 	args := c.RemainingArgs()
 	if len(args) == 1 && args[0] == "cloudflare" {
 		addCloudflareIps(m)
@@ -97,10 +105,10 @@ func addCloudflareIps(m *module) {
 }
 
 ///////
-// Helpers below here could potentially be methods on *setup.Contoller for convenience
+// Helpers below here could potentially be methods on *caddy.Contoller for convenience
 
 // Assert only one arg and return it
-func StringArg(c *setup.Controller) (string, error) {
+func StringArg(c *caddy.Controller) (string, error) {
 	args := c.RemainingArgs()
 	if len(args) != 1 {
 		return "", c.ArgErr()
@@ -109,7 +117,7 @@ func StringArg(c *setup.Controller) (string, error) {
 }
 
 // Assert only one arg is a valid cidr notation
-func CidrArg(c *setup.Controller) (*net.IPNet, error) {
+func CidrArg(c *caddy.Controller) (*net.IPNet, error) {
 	a, err := StringArg(c)
 	if err != nil {
 		return nil, err
@@ -121,7 +129,7 @@ func CidrArg(c *setup.Controller) (*net.IPNet, error) {
 	return cidr, nil
 }
 
-func BoolArg(c *setup.Controller) (bool, error) {
+func BoolArg(c *caddy.Controller) (bool, error) {
 	args := c.RemainingArgs()
 	if len(args) > 1 {
 		return false, c.ArgErr()
@@ -139,7 +147,7 @@ func BoolArg(c *setup.Controller) (bool, error) {
 	}
 }
 
-func NoArgs(c *setup.Controller) error {
+func NoArgs(c *caddy.Controller) error {
 	if len(c.RemainingArgs()) != 0 {
 		return c.ArgErr()
 	}
