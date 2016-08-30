@@ -36,7 +36,7 @@ func (m *module) ServeHTTP(w http.ResponseWriter, req *http.Request) (int, error
 		//restore original host:port format
 		leftMost := strings.Split(hVal, ",")[0]
 		if net.ParseIP(leftMost) != nil {
-			req.RemoteAddr = leftMost + ":" + port
+			req.RemoteAddr = net.JoinHostPort(leftMost, port)
 		}
 	}
 	return m.next.ServeHTTP(w, req)
