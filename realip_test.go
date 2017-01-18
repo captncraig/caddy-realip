@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/mholt/caddy/middleware"
+	"github.com/mholt/caddy/caddyhttp/httpserver"
 )
 
 func TestRealIP(t *testing.T) {
@@ -29,7 +29,7 @@ func TestRealIP(t *testing.T) {
 			t.Fatal(err)
 		}
 		he := &module{
-			next: middleware.HandlerFunc(func(w http.ResponseWriter, r *http.Request) (int, error) {
+			next: httpserver.HandlerFunc(func(w http.ResponseWriter, r *http.Request) (int, error) {
 				remoteAddr = r.RemoteAddr
 				return 0, nil
 			}),
