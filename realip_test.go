@@ -18,16 +18,21 @@ func TestRealIP(t *testing.T) {
 		{"1.2.3.4:123", "", "1.2.3.4:123"},
 		{"4.4.255.255:123", "", "4.4.255.255:123"},
 		{"4.5.0.0:123", "1.2.3.4", "1.2.3.4:123"},
-		{"4.5.2.3:123", "1.2.6.7,5.6.7.8,111.111.111.111", "1.2.6.7:123"},
+
+		// because 111.111.111.111 is NOT in a trusted subnet, the next in the chain should not be trusted
+		{"4.5.2.3:123", "1.2.6.7,5.6.7.8,111.111.111.111", "111.111.111.111"},
 		{"4.5.5.5:123", "NOTANIP", "4.5.5.5:123"},
 		{"aaaaaa", "1.2.3.4", "aaaaaa"},
 		{"aaaaaa:123", "1.2.3.4", "aaaaaa:123"},
+
+		{"4.5.2.3:123", "1.2.6.7,5.6.7.8,4.5.6.7", "5.6.7.8"},
 	} {
 		remoteAddr := ""
 		_, ipnet, err := net.ParseCIDR("4.5.0.0/16") // "4.5.x.x"
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		he := &module{
 			next: httpserver.HandlerFunc(func(w http.ResponseWriter, r *http.Request) (int, error) {
 				remoteAddr = r.RemoteAddr
