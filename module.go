@@ -7,36 +7,53 @@ import (
 	"strings"
 )
 
+func (m *module) validSource(addr string) bool {
+	ip := net.ParseIP(addr)
+	if ip == nil {
+		return false
+	}
+	for _, from := range m.From {
+		if from.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *module) ServeHTTP(w http.ResponseWriter, req *http.Request) (int, error) {
-	validSource := false
 	host, port, err := net.SplitHostPort(req.RemoteAddr)
-	if err != nil {
+	if err != nil || !m.validSource(host) {
 		if m.Strict {
 			return 403, fmt.Errorf("Error reading remote addr: %s", req.RemoteAddr)
 		}
 		return m.next.ServeHTTP(w, req) // Change nothing and let next deal with it.
 	}
-	reqIP := net.ParseIP(host)
-	if reqIP == nil {
+	if !m.validSource(host) {
 		if m.Strict {
-			return 403, fmt.Errorf("Error parsing remote addr: %s", host)
+			return 403, fmt.Errorf("Unrecognized proxy ip address: %s", host)
 		}
 		return m.next.ServeHTTP(w, req)
 	}
-	for _, from := range m.From {
-		if from.Contains(reqIP) {
-			validSource = true
-			break
-		}
-	}
-	if !validSource && m.Strict {
-		return 403, fmt.Errorf("Unrecognized proxy ip address: %s", reqIP)
-	}
-	if hVal := req.Header.Get(m.Header); validSource && hVal != "" {
+
+	if hVal := req.Header.Get(m.Header); hVal != "" {
 		//restore original host:port format
-		leftMost := strings.Split(hVal, ",")[0]
-		if net.ParseIP(leftMost) != nil {
-			req.RemoteAddr = net.JoinHostPort(leftMost, port)
+		parts := strings.Split(hVal, ",")
+		ip := net.ParseIP(parts[len(parts)-1])
+		if ip == nil {
+			if m.Strict {
+				return 403, fmt.Errorf("Unrecognized proxy ip address: %s", parts[len(parts)-1])
+			}
+			return m.next.ServeHTTP(w, req)
+		}
+		req.RemoteAddr = net.JoinHostPort(parts[len(parts)-1], port)
+		for i := len(parts) - 1; i >= 0; i-- {
+			req.RemoteAddr = net.JoinHostPort(parts[i], port)
+			if i > 0 && !m.validSource(parts[i]) {
+				if m.Strict {
+					return 403, fmt.Errorf("Unrecognized proxy ip address: %s", parts[i])
+				}
+				return m.next.ServeHTTP(w, req)
+			}
 		}
 	}
 	return m.next.ServeHTTP(w, req)
