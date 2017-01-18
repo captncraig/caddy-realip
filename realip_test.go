@@ -26,6 +26,10 @@ func TestRealIP(t *testing.T) {
 		{"aaaaaa:123", "1.2.3.4", "aaaaaa:123"},
 
 		{"4.5.2.3:123", "1.2.6.7,5.6.7.8,4.5.6.7", "5.6.7.8:123"},
+
+		// expectedIP is empty because the server should have returned a 403
+		// since the chain is longer than the configured max (5)
+		{"4.5.2.3:123", "1.2.6.7,5.6.7.8,4.5.6.7,5.6.7.8,4.5.6.7,1.2.3.4", ""},
 	} {
 		remoteAddr := ""
 		_, ipnet, err := net.ParseCIDR("4.5.0.0/16") // "4.5.x.x"
@@ -38,8 +42,9 @@ func TestRealIP(t *testing.T) {
 				remoteAddr = r.RemoteAddr
 				return 0, nil
 			}),
-			Header: "X-Real-IP",
-			From:   []*net.IPNet{ipnet},
+			Header:  "X-Real-IP",
+			MaxHops: 5,
+			From:    []*net.IPNet{ipnet},
 		}
 
 		req, err := http.NewRequest("GET", "http://foo.tld/", nil)

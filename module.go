@@ -38,6 +38,9 @@ func (m *module) ServeHTTP(w http.ResponseWriter, req *http.Request) (int, error
 	if hVal := req.Header.Get(m.Header); hVal != "" {
 		//restore original host:port format
 		parts := strings.Split(hVal, ",")
+		if m.MaxHops != -1 && len(parts) > m.MaxHops {
+			return 403, fmt.Errorf("Too many forward addresses")
+		}
 		ip := net.ParseIP(parts[len(parts)-1])
 		if ip == nil {
 			if m.Strict {

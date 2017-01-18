@@ -2,9 +2,10 @@ package realip
 
 import (
 	"net"
+	"strconv"
 
-	"github.com/mholt/caddy/caddyhttp/httpserver"
 	"github.com/mholt/caddy"
+	"github.com/mholt/caddy/caddyhttp/httpserver"
 )
 
 func init() {
@@ -18,7 +19,13 @@ type module struct {
 	next   httpserver.Handler
 	From   []*net.IPNet
 	Header string
-	Strict bool
+
+	// MaxHops configures the maxiumum number of hops or IPs to be found in a forward header.
+	// It's purpose is to prevent abuse and/or DOS attacks from long forward-chains, since each one
+	// must be parsed and checked against a list of subnets.
+	// The default is 5, -1 to disable. If set to 0, any request with a forward header will be rejected
+	MaxHops int
+	Strict  bool
 }
 
 func Setup(c *caddy.Controller) error {
@@ -28,7 +35,8 @@ func Setup(c *caddy.Controller) error {
 			return c.Err("cannot specify realip more than once")
 		}
 		m = &module{
-			Header: "X-Forwarded-For",
+			Header:  "X-Forwarded-For",
+			MaxHops: 5,
 		}
 		if err := parse(m, c); err != nil {
 			return err
@@ -62,6 +70,8 @@ func parse(m *module, c *caddy.Controller) (err error) {
 			m.From = append(m.From, cidr)
 		case "strict":
 			m.Strict, err = BoolArg(c)
+		case "maxhops":
+			m.MaxHops, err = IntArg(c)
 		default:
 			return c.Errf("Unknown realip arg: %s", c.Val())
 		}
@@ -106,6 +116,15 @@ func addCloudflareIps(m *module) {
 
 ///////
 // Helpers below here could potentially be methods on *caddy.Contoller for convenience
+
+// IntArg check's there is only one arg, parses, and returns it
+func IntArg(c *caddy.Controller) (int, error) {
+	args := c.RemainingArgs()
+	if len(args) != 1 {
+		return 0, c.ArgErr()
+	}
+	return strconv.Atoi(args[0])
+}
 
 // Assert only one arg and return it
 func StringArg(c *caddy.Controller) (string, error) {
