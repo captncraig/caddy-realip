@@ -15,19 +15,6 @@ func init() {
 	})
 }
 
-type module struct {
-	next   httpserver.Handler
-	From   []*net.IPNet
-	Header string
-
-	// MaxHops configures the maxiumum number of hops or IPs to be found in a forward header.
-	// It's purpose is to prevent abuse and/or DOS attacks from long forward-chains, since each one
-	// must be parsed and checked against a list of subnets.
-	// The default is 5, -1 to disable. If set to 0, any request with a forward header will be rejected
-	MaxHops int
-	Strict  bool
-}
-
 func Setup(c *caddy.Controller) error {
 	var m *module
 	for c.Next() {
@@ -51,13 +38,10 @@ func Setup(c *caddy.Controller) error {
 
 func parse(m *module, c *caddy.Controller) (err error) {
 	args := c.RemainingArgs()
-	if len(args) == 1 && args[0] == "cloudflare" {
-		addCloudflareIps(m)
-		if c.NextBlock() {
-			return c.Err("No realip subblocks allowed if using preset.")
+	if len(args) > 0 {
+		if err := addIpRanges(m, c, args); err != nil {
+			return err
 		}
-	} else if len(args) != 0 {
-		return c.ArgErr()
 	}
 	for c.NextBlock() {
 		var err error
@@ -65,9 +49,7 @@ func parse(m *module, c *caddy.Controller) (err error) {
 		case "header":
 			m.Header, err = StringArg(c)
 		case "from":
-			var cidr *net.IPNet
-			cidr, err = CidrArg(c)
-			m.From = append(m.From, cidr)
+			err = addIpRanges(m, c, c.RemainingArgs())
 		case "strict":
 			m.Strict, err = BoolArg(c)
 		case "maxhops":
@@ -82,43 +64,27 @@ func parse(m *module, c *caddy.Controller) (err error) {
 	return nil
 }
 
-func addCloudflareIps(m *module) {
-	// from https://www.cloudflare.com/ips/
-	var cfPresets = []string{
-		"103.21.244.0/22",
-		"103.22.200.0/22",
-		"103.31.4.0/22",
-		"104.16.0.0/12",
-		"108.162.192.0/18",
-		"131.0.72.0/22",
-		"141.101.64.0/18",
-		"162.158.0.0/15",
-		"172.64.0.0/13",
-		"173.245.48.0/20",
-		"188.114.96.0/20",
-		"190.93.240.0/20",
-		"197.234.240.0/22",
-		"198.41.128.0/17",
-		"199.27.128.0/21",
-		"2400:cb00::/32",
-		"2405:8100::/32",
-		"2405:b500::/32",
-		"2606:4700::/32",
-		"2803:f800::/32",
-		"2a06:98c0::/29",
-		"2c0f:f248::/32",
-	}
-	for _, c := range cfPresets {
-		_, cidr, err := net.ParseCIDR(c)
+// Adds a list of CIDR IP Ranges to the From whitelist
+func addIpRanges(m *module, c *caddy.Controller, ranges []string) error {
+	for _, v := range ranges {
+		if preset, ok := presets[v]; ok {
+			if err := addIpRanges(m, c, preset); err != nil {
+				return err
+			}
+			continue
+		}
+		_, cidr, err := net.ParseCIDR(v)
 		if err != nil {
-			panic(err)
+			return c.Err(err.Error())
 		}
 		m.From = append(m.From, cidr)
 	}
+	return nil
 }
 
-///////
-// Helpers below here could potentially be methods on *caddy.Contoller for convenience
+//
+// Helpers below here could potentially be methods on *caddy.Controller for convenience
+//
 
 // IntArg check's there is only one arg, parses, and returns it
 func IntArg(c *caddy.Controller) (int, error) {
