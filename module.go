@@ -2,10 +2,24 @@ package realip
 
 import (
 	"fmt"
+	"github.com/mholt/caddy/caddyhttp/httpserver"
 	"net"
 	"net/http"
 	"strings"
 )
+
+type module struct {
+	next   httpserver.Handler
+	From   []*net.IPNet
+	Header string
+
+	// MaxHops configures the maxiumum number of hops or IPs to be found in a forward header.
+	// It's purpose is to prevent abuse and/or DOS attacks from long forward-chains, since each one
+	// must be parsed and checked against a list of subnets.
+	// The default is 5, -1 to disable. If set to 0, any request with a forward header will be rejected
+	MaxHops int
+	Strict  bool
+}
 
 func (m *module) validSource(addr string) bool {
 	ip := net.ParseIP(addr)

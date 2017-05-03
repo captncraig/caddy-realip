@@ -6,6 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"bytes"
+	"fmt"
+	"github.com/mholt/caddy"
 	"github.com/mholt/caddy/caddyhttp/httpserver"
 )
 
@@ -63,4 +66,72 @@ func TestRealIP(t *testing.T) {
 			t.Errorf("Test %d: Expected '%s', but found '%s'", i, test.expectedIP, remoteAddr)
 		}
 	}
+}
+
+func TestCidrAndPresets(t *testing.T) {
+	tests := []struct {
+		rule     string
+		presets  []string
+		expected []string
+	}{
+		{"cloudflare", []string{"cloudflare"}, nil},
+		{"gcp", []string{"gcp"}, nil},
+		{"rackspace", []string{"rackspace"}, nil},
+		{"cloudflare rackspace gcp", []string{"cloudflare", "gcp", "rackspace"}, nil},
+		{"cloudflare { from 1.2.3.4/32\n}", []string{"cloudflare"}, []string{"1.2.3.4/32"}},
+		{"{ from gcp 1.2.3.4/32\n}", []string{"gcp"}, []string{"1.2.3.4/32"}},
+		{"{ from gcp rackspace\n}", []string{"gcp", "rackspace"}, nil},
+		{"{ from gcp\n from rackspace\n}", []string{"gcp", "rackspace"}, nil},
+		{"{ from rackspace\n from 1.2.3.4/32\n}", []string{"rackspace"}, []string{"1.2.3.4/32"}},
+		{"{ from 1.2.3.4/32 5.6.7.8/32\n}", nil, []string{"1.2.3.4/32", "5.6.7.8/32"}},
+	}
+	for i, test := range tests {
+		c := caddy.NewTestController("http", test.rule)
+		m := &module{}
+		err := parse(m, c)
+		if err != nil {
+			t.Fatalf("Test %d: failed while parsing: '%s'; got '%v'", i, test.rule, err)
+		}
+		var cidrs []*net.IPNet
+		for _, name := range test.presets {
+			if preset, ok := presets[name]; ok {
+				result, err := parseCidrs(i, preset)
+				if err != nil {
+					t.Fatal(err)
+				}
+				cidrs = append(cidrs, result...)
+			} else {
+				t.Fatalf("Test %d: Specified preset missing: %s", i, name)
+			}
+		}
+		result, err := parseCidrs(i, test.expected)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cidrs = append(cidrs, result...)
+		for _, cidr := range cidrs {
+			found := false
+			for _, from := range m.From {
+				if bytes.Compare(from.IP, cidr.IP) == 0 && bytes.Compare(from.Mask, cidr.Mask) == 0 {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("Test %d: Expected %q, but missing from result: %q", i, cidr, m.From)
+			}
+		}
+	}
+}
+
+func parseCidrs(i int, values []string) ([]*net.IPNet, error) {
+	var cidrs []*net.IPNet
+	for _, value := range values {
+		_, cidr, err := net.ParseCIDR(value)
+		if err != nil {
+			return nil, fmt.Errorf("Test %d: Failed to parse CIDR %q, got: %v", i, value, err)
+		}
+		cidrs = append(cidrs, cidr)
+	}
+	return cidrs, nil
 }
