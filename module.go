@@ -2,10 +2,11 @@ package realip
 
 import (
 	"fmt"
-	"github.com/mholt/caddy/caddyhttp/httpserver"
 	"net"
 	"net/http"
-	"strings"
+	"regexp"
+
+	"github.com/mholt/caddy/caddyhttp/httpserver"
 )
 
 type module struct {
@@ -51,7 +52,7 @@ func (m *module) ServeHTTP(w http.ResponseWriter, req *http.Request) (int, error
 
 	if hVal := req.Header.Get(m.Header); hVal != "" {
 		//restore original host:port format
-		parts := strings.Split(hVal, ",")
+		parts := regexp.MustCompile(`,\s*`).Split(hVal, -1)
 		if m.MaxHops != -1 && len(parts) > m.MaxHops {
 			return 403, fmt.Errorf("Too many forward addresses")
 		}
