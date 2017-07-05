@@ -19,15 +19,18 @@ files and with other plugins.
 realip [cidr] {
     header name
     from   cidr [cidr... ]
+    preserve
     strict
 }
 ```
 
-name is the name of the header containing the actual IP address. Default is  X-Forwarded-For.
+`name` is the name of the header containing the actual IP address. Default is `X-Forwarded-For`.
 
-cidr is the address range of expected proxy servers. As a security measure, IP headers are only accepted from known proxy servers. Must be a valid cidr block notation. This may be specified multiple times.
+`cidr` is the address range of expected proxy servers. As a security measure, IP headers are only accepted from known proxy servers. Must be a valid cidr block notation. This may be specified multiple times.
 
-strict, if specified, will reject requests from unkown proxy IPs with a 403 status. If not specified, it will simply leave the original IP in place.
+`preserve`, if specified, will retain the original `RemoteAddr` value in an `Original-Remote-Address` header value, which will be passed to other middleware or to upstream servers in a proxy configuration.
+
+`strict`, if specified, will reject requests from unkown proxy IPs with a 403 status. If not specified, it will simply leave the original IP in place.
 
 ## CIDR blocks
 
