@@ -20,6 +20,10 @@ type module struct {
 	// The default is 5, -1 to disable. If set to 0, any request with a forward header will be rejected
 	MaxHops int
 	Strict  bool
+	// Preserves the original value of the RemoteAddr request property in a header
+	// which is passed on to other middleware and/or upstream servers in the case
+	// of a proxy configuration.
+	Preserve bool
 }
 
 func (m *module) validSource(addr string) bool {
@@ -36,6 +40,10 @@ func (m *module) validSource(addr string) bool {
 }
 
 func (m *module) ServeHTTP(w http.ResponseWriter, req *http.Request) (int, error) {
+	originalRemoteAddr := req.RemoteAddr
+	if m.Preserve {
+		req.Header.Set("Original-Remote-Address", originalRemoteAddr)
+	}
 	host, port, err := net.SplitHostPort(req.RemoteAddr)
 	if err != nil || !m.validSource(host) {
 		if m.Strict {

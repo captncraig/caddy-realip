@@ -54,6 +54,8 @@ func parse(m *module, c *caddy.Controller) (err error) {
 			m.Strict, err = BoolArg(c)
 		case "maxhops":
 			m.MaxHops, err = IntArg(c)
+		case "preserve":
+			m.Preserve, err = BoolArg(c)
 		default:
 			return c.Errf("Unknown realip arg: %s", c.Val())
 		}
