@@ -17,15 +17,18 @@ files and with other plugins.
 ## Syntax
 ```Caddyfile
 realip [cidr] {
-    header name
-    from   cidr [cidr... ]
+    header  name
+    from    cidr [cidr... ]
+    maxhops hops
     strict
 }
 ```
 
 name is the name of the header containing the actual IP address. Default is  X-Forwarded-For.
 
-cidr is the address range of expected proxy servers. As a security measure, IP headers are only accepted from known proxy servers. Must be a valid cidr block notation. This may be specified multiple times.
+cidr is the address range of expected proxy servers. As a security measure, IP headers are only accepted from known proxy servers. Must be a valid CIDR block notation. This may be specified multiple times.
+
+hops is the number of proxy hops allowed. In strict mode, setting this will result in a 403 if it is exceeded. Otherwise it will truncate down to the maximum number of hops and continue processing as otherwise. This can be used in cases where the number of proxies out to the internet will be fixed, but either there are too many CIDR ranges to practically specify or they cannot be known ahead of time.
 
 strict, if specified, will reject requests from unkown proxy IPs with a 403 status. If not specified, it will simply leave the original IP in place.
 
